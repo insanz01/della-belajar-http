@@ -19,6 +19,11 @@ func KontakHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodPost:
+		db, err := InitDB()
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "Error reading request body", http.StatusBadRequest)
@@ -33,13 +38,8 @@ func KontakHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if !req.IsValid() {
-			http.Error(w, "Invalid biodata", http.StatusBadRequest)
+			http.Error(w, "Invalid kontak", http.StatusBadRequest)
 			return
-		}
-
-		db, err := InitDB()
-		if err != nil {
-			log.Fatal(err)
 		}
 
 		// TODO : logic database
@@ -106,7 +106,73 @@ func KontakHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Write(result)
+		return
+	case http.MethodPut:
+		db, err := InitDB()
+		if err != nil {
+			log.Fatal(err)
+		}
 
+		queryName := r.URL.Query().Get("id")
+		if queryName == "" {
+			http.Error(w, "Parameter 'id' dibutuhkan untuk update", http.StatusBadRequest)
+			return
+		}
+
+		id, err := strconv.Atoi(queryName)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Error reading request body", http.StatusBadRequest)
+			return
+		}
+
+		var req KontakTeman
+		err = json.Unmarshal(body, &req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if !req.IsValid() {
+			http.Error(w, "Invalid kontak", http.StatusBadRequest)
+			return
+		}
+
+		k, err := req.GetByID(db, id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if k == nil {
+			http.Error(w, "Kontak tidak ditemukan", http.StatusNotFound)
+			return
+		}
+
+		req.ID = id
+		if err := req.Update(db); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		responseMessage := struct {
+			Message string `json:"message"`
+		}{
+			Message: "Kontak berhasil diubah",
+		}
+
+		result, err := json.Marshal(responseMessage)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+
+		}
+
+		w.Write(result)
+		return
 	case http.MethodDelete:
 		db, err := InitDB()
 		if err != nil {
@@ -158,6 +224,8 @@ func KontakHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Write(result)
+		return
+
 	}
 }
 
